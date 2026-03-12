@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArvyaX Journal</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      body { font-family: Arial, sans-serif; max-width: 900px; margin: 20px auto; padding: 0 12px; }
+      textarea,input,select,button { width: 100%; padding: 8px; margin: 6px 0; }
+      .card { border: 1px solid #ddd; padding: 10px; margin: 8px 0; border-radius: 8px; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="text/babel">
+      function App() {
+        const [userId, setUserId] = React.useState('123');
+        const [ambience, setAmbience] = React.useState('forest');
+        const [text, setText] = React.useState('');
+        const [entries, setEntries] = React.useState([]);
+        const [analysis, setAnalysis] = React.useState(null);
+        const [insights, setInsights] = React.useState(null);
+
+        const loadEntries = async () => {
+          const res = await fetch(`/api/journal/${userId}`);
+          setEntries(await res.json());
+        };
+
+        const loadInsights = async () => {
+          const res = await fetch(`/api/journal/insights/${userId}`);
+          setInsights(await res.json());
+        };
+
+        const submitEntry = async () => {
+          await fetch('/api/journal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, ambience, text }),
+          });
+          setText('');
+          loadEntries();
+          loadInsights();
+        };
+
+        const analyzeText = async () => {
+          const res = await fetch('/api/journal/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+          });
+          setAnalysis(await res.json());
+        };
+
+        React.useEffect(() => { loadEntries(); loadInsights(); }, [userId]);
+
+        return (
+          <div>
+            <h1>ArvyaX Journal</h1>
+            <input value={userId} onChange={e => setUserId(e.target.value)} placeholder="User ID" />
+            <select value={ambience} onChange={e => setAmbience(e.target.value)}>
+              <option value="forest">forest</option>
+              <option value="ocean">ocean</option>
+              <option value="mountain">mountain</option>
+            </select>
+            <textarea rows="5" value={text} onChange={e => setText(e.target.value)} placeholder="Write your journal entry" />
+            <div className="row">
+              <button onClick={submitEntry}>Save Entry</button>
+              <button onClick={analyzeText}>Analyze</button>
+            </div>
+
+            {analysis && (
+              <div className="card">
+                <h3>Analysis</h3>
+                <p><b>Emotion:</b> {analysis.emotion}</p>
+                <p><b>Keywords:</b> {(analysis.keywords || []).join(', ')}</p>
+                <p><b>Summary:</b> {analysis.summary}</p>
+              </div>
+            )}
+
+            {insights && (
+              <div className="card">
+                <h3>Insights</h3>
+                <p>Total Entries: {insights.totalEntries}</p>
+                <p>Top Emotion: {insights.topEmotion || '-'}</p>
+                <p>Most Used Ambience: {insights.mostUsedAmbience || '-'}</p>
+                <p>Recent Keywords: {(insights.recentKeywords || []).join(', ')}</p>
+              </div>
+            )}
+
+            <h3>Previous Entries</h3>
+            {entries.map((e) => (
+              <div className="card" key={e.id}>
+                <p><b>{e.createdAt}</b> ({e.ambience})</p>
+                <p>{e.text}</p>
+                <p>Emotion: {e.emotion}</p>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>

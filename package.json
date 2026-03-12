@@ -1,0 +1,11 @@
+{
+  "name": "arvyax-journal",
+  "version": "1.0.0",
+  "description": "ArvyaX journal and emotion insights app",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test"
+  }
+}
