@@ -5,7 +5,10 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "dev:backend": "node src/server.js",
+    "dev:frontend": "cd frontend && npm run dev",
     "dev": "node src/server.js",
+    "build:frontend": "cd frontend && npm run build",
     "test": "node --test"
   }
 }

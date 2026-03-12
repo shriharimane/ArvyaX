@@ -1,3 +1,5 @@
 node_modules/
 .env
-data.sqlitegit add .gitignore
+data.sqlite
+frontend/.next/
+frontend/node_modules/
