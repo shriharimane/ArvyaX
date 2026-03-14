@@ -130,7 +130,15 @@ curl http://localhost:3000/api/journal/insights/123
 
 By default, the app uses a built-in heuristic analyzer — no API key required.
 
-To enable richer analysis via a free hosted LLM through [OpenRouter](https://openrouter.ai):
+To enable richer analysis with OpenAI:
+
+```bash
+export OPENAI_API_KEY=your_key
+export OPENAI_MODEL=gpt-4o-mini
+node src/server.js
+```
+
+Or use OpenRouter:
 
 ```bash
 export OPENROUTER_API_KEY=your_key
@@ -138,4 +146,4 @@ export OPENROUTER_MODEL=meta-llama/llama-3.2-3b-instruct:free
 node src/server.js
 ```
 
-> If the API call fails for any reason, analysis automatically falls back to heuristics — no errors surface to the user.
+If both are set, OpenAI is used first. If the API call fails for any reason, analysis automatically falls back to heuristics.

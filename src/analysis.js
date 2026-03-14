@@ -13,6 +13,34 @@ function hashText(text) {
   return crypto.createHash('sha256').update(text.trim().toLowerCase()).digest('hex');
 }
 
+function getAnalysisProfile() {
+  const openAiKey = process.env.OPENAI_API_KEY;
+  if (openAiKey) {
+    return {
+      provider: 'openai',
+      apiUrl: process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      apiKey: openAiKey,
+    };
+  }
+
+  const openRouterKey = process.env.OPENROUTER_API_KEY;
+  if (openRouterKey) {
+    return {
+      provider: 'openrouter',
+      apiUrl: process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions',
+      model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free',
+      apiKey: openRouterKey,
+      headers: {
+        'HTTP-Referer': process.env.OPENROUTER_REFERER || 'http://localhost:3000',
+        'X-Title': process.env.OPENROUTER_TITLE || 'ArvyaX Journal',
+      },
+    };
+  }
+
+  return null;
+}
+
 function heuristicAnalysis(text) {
   const normalized = text.toLowerCase();
   const matched = emotionRules
@@ -27,19 +55,20 @@ function heuristicAnalysis(text) {
 }
 
 async function llmAnalysis(text) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+  const profile = getAnalysisProfile();
+  if (!profile) {
     return heuristicAnalysis(text);
   }
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+  const res = await fetch(profile.apiUrl, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${profile.apiKey}`,
       'Content-Type': 'application/json',
+      ...(profile.headers || {}),
     },
     body: JSON.stringify({
-      model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free',
+      model: profile.model,
       response_format: { type: 'json_object' },
       messages: [
         {
@@ -53,6 +82,7 @@ async function llmAnalysis(text) {
   });
 
   if (!res.ok) {
+    console.warn(`LLM analysis failed (${profile.provider}) with status ${res.status}; falling back to heuristics.`);
     return heuristicAnalysis(text);
   }
 
@@ -71,7 +101,9 @@ async function llmAnalysis(text) {
 }
 
 async function analyzeWithCache(text) {
-  const textHash = hashText(text);
+  const profile = getAnalysisProfile();
+  const cacheScope = profile ? `${profile.provider}:${profile.model}` : 'heuristic';
+  const textHash = hashText(`${cacheScope}\n${text}`);
   const cached = all('SELECT emotion, keywords, summary FROM analysis_cache WHERE text_hash = ?', [textHash])[0];
   if (cached) {
     return { ...cached, keywords: JSON.parse(cached.keywords), cached: true };

@@ -2,6 +2,36 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return "Unable to reach the journal service.";
+}
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const urls = API_URL ? [`${API_URL}${path}`, path] : [path];
+  let lastError: Error | null = null;
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, init);
+      if (!res.ok) {
+        throw new Error(`Request failed with status ${res.status}`);
+      }
+
+      return (await res.json()) as T;
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error
+          : new Error("Unable to reach the journal service.");
+    }
+  }
+
+  throw lastError ?? new Error("Unable to reach the journal service.");
+}
+
 /* ─── Types ─── */
 type Ambience = "forest" | "ocean" | "mountain";
 
@@ -136,45 +166,73 @@ export default function Home() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [saving, setSaving] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const t = THEME[ambience];
 
   const loadEntries = useCallback(async () => {
-    const res = await fetch(`/api/journal/${encodeURIComponent(userId)}`);
-    setEntries(await res.json());
+    try {
+      const data = await requestJson<Entry[]>(
+        `/api/journal/${encodeURIComponent(userId)}`
+      );
+      setEntries(data);
+      setApiError(null);
+    } catch (error) {
+      setEntries([]);
+      setApiError(getErrorMessage(error));
+    }
   }, [userId]);
 
   const loadInsights = useCallback(async () => {
-    const res = await fetch(
-      `/api/journal/insights/${encodeURIComponent(userId)}`
-    );
-    setInsights(await res.json());
+    try {
+      const data = await requestJson<Insights>(
+        `/api/journal/insights/${encodeURIComponent(userId)}`
+      );
+      setInsights(data);
+      setApiError(null);
+    } catch (error) {
+      setInsights(null);
+      setApiError(getErrorMessage(error));
+    }
   }, [userId]);
 
   const submitEntry = async () => {
     if (!text.trim()) return;
     setSaving(true);
-    await fetch("/api/journal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, ambience, text }),
-    });
-    setText("");
-    setSaving(false);
-    loadEntries();
-    loadInsights();
+    try {
+      await requestJson<{ success: boolean }>("/api/journal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, ambience, text }),
+      });
+      setText("");
+      setApiError(null);
+      loadEntries();
+      loadInsights();
+    } catch (error) {
+      setApiError(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const analyzeText = async () => {
     if (!text.trim()) return;
     setAnalyzing(true);
-    const res = await fetch("/api/journal/analyze", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
-    setAnalysis(await res.json());
-    setAnalyzing(false);
+    try {
+      const data = await requestJson<Analysis>("/api/journal/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      setAnalysis(data);
+      setApiError(null);
+    } catch (error) {
+      setAnalysis(null);
+      setApiError(getErrorMessage(error));
+    } finally {
+      setAnalyzing(false);
+    }
   };
 
   useEffect(() => {
@@ -200,6 +258,12 @@ export default function Home() {
           </h1>
           <p className="mt-2 text-sm italic opacity-60">{t.tagline}</p>
         </header>
+
+        {apiError && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-sm">
+            {apiError}. The deployed API URL currently falls back to the local proxy when available.
+          </div>
+        )}
 
         {/* ── Compose Card ── */}
         <Glass>
